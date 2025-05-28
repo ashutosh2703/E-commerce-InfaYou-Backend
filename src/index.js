@@ -26,6 +26,8 @@ app.use("/api/admin/products",adminProductRouter);
 const cartRouter=require("./routes/cart.routes.js");
 app.use("/api/cart", cartRouter);
 
+app.use('/api/wishlist', require('./routes/wishlist.routes'));
+
 const cartItemRouter=require("./routes/cartItem.routes.js")
 app.use("/api/cart_items",cartItemRouter);
 

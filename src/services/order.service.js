@@ -1,63 +1,87 @@
+const  mongoose = require("mongoose");
 const Address = require("../models/address.model.js");
 const Order = require("../models/order.model.js");
 const OrderItem = require("../models/orderItems.js");
+const User = require("../models/user.model.js");
 const cartService = require("../services/cart.service.js");
+const generateInvoice = require('./generateInvoice.js');
 
 async function createOrder(user, shippAddress) {
-  let address;
-  if (shippAddress._id) {
-    let existedAddress = await Address.findById(shippAddress._id);
-    address = existedAddress;
-  } else {
-    address = new Address(shippAddress);
-    address.user = user;
-    await address.save();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    user.addresses.push(address);
-    await user.save();
-  }
+  try {
+    let address;
 
-  const cart = await cartService.findUserCart(user._id);
-  const orderItems = [];
+    if (shippAddress._id) {
+      address = await Address.findById(shippAddress._id).session(session);
+    } else {
+      address = new Address({ ...shippAddress, user: user._id });
+      await address.save({ session });
+      user.addresses.push(address._id);
+      await user.save({ session });
+    }
 
-  for (const item of cart.cartItems) {
-    const orderItem = new OrderItem({
-      price: item.price,
-      product: item.product,
-      quantity: item.quantity,
-      size: item.size,
-      userId: item.userId,
-      discountedPrice: item.discountedPrice,
+    const cart = await cartService.findUserCart(user._id);
+    const orderItems = [];
+
+    for (const item of cart.cartItems) {
+      const orderItem = new OrderItem({
+        price: item.price,
+        product: item.product,
+        quantity: item.quantity,
+        size: item.size,
+        userId: item.userId,
+        discountedPrice: item.discountedPrice,
+      });
+
+      const createdOrderItem = await orderItem.save({ session });
+      orderItems.push(createdOrderItem);
+    }
+
+    const createdOrder = new Order({
+      user: user._id,
+      orderItems: orderItems.map(oi => oi._id),
+      totalPrice: cart.totalPrice,
+      totalDiscountedPrice: cart.totalDiscountedPrice,
+      discounte: cart.discounte,
+      totalItem: cart.totalItem,
+      shippingAddress: address._id,
+      orderDate: new Date(),
+      orderStatus: "PENDING",
+      paymentDetails: {
+        paymentStatus: "PENDING",
+      },
+      createdAt: new Date(),
     });
 
-    const createdOrderItem = await orderItem.save();
-    orderItems.push(createdOrderItem);
+    const savedOrder = await createdOrder.save({ session });
+
+    // Clear cart
+    cart.cartItems = [];
+    cart.totalPrice = 0;
+    cart.totalDiscountedPrice = 0;
+    cart.totalItem = 0;
+    cart.discounte = 0;
+    await cart.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    // Outside transaction: for safety (e.g., PDF generation doesn't rollback DB)
+    const fullUser = await User.findById(user._id);
+    const orderItemDetails = await OrderItem.find({ _id: { $in: orderItems.map(oi => oi._id) } }).populate('product');
+
+    await generateInvoice(savedOrder, fullUser, orderItemDetails, address);
+
+    return savedOrder;
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Order creation failed:", error);
+    throw new Error("Order creation failed. Please try again.");
   }
-
-  const createdOrder = new Order({
-    user,
-    orderItems,
-    totalPrice: cart.totalPrice,
-    totalDiscountedPrice: cart.totalDiscountedPrice,
-    discounte: cart.discounte,
-    totalItem: cart.totalItem,
-    shippingAddress: address,
-    orderDate: new Date(),
-    orderStatus: "PENDING", // Assuming OrderStatus is a string enum or a valid string value
-    "paymentDetails.status": "PENDING", // Assuming PaymentStatus is nested under 'paymentDetails'
-    createdAt: new Date(),
-  });
-
-  const savedOrder = await createdOrder.save();
-
-  cart.cartItems = [];
-  cart.totalPrice = 0;
-  cart.totalDiscountedPrice = 0;
-  cart.totalItem = 0;
-  cart.discounte = 0;
-  await cart.save();
-
-  return savedOrder;
 }
 
 async function placedOrder(orderId) {

@@ -91,7 +91,7 @@ const getUserProfileByToken=async(token)=>{
 
         const userId=jwtProvider.getUserIdFromToken(token)
 
-        console.log("userr id ",userId)
+        // console.log("userr id ",userId)
 
 
         const user= (await findUserById(userId)).populate("addresses");
