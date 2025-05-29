@@ -7,11 +7,10 @@ const createUser = async (userData) => {
     try {
         let { firstName, lastName, email, password, role, mobile, dob } = userData;
 
-        // Check for existing user (optional: use mobile only if you're doing OTP-only)
-        const isUserExist = await User.findOne({ $or: [{ email }, { mobile }] });
+        const isUserExist = await User.findOne({  mobile });
 
         if (isUserExist) {
-            throw new Error(`User already exists with email or mobile`);
+            throw new Error(`User already exists with mobile`);
         }
 
         // Hash password only if it's provided
@@ -27,7 +26,7 @@ const createUser = async (userData) => {
             password: hashedPassword,
             role,
             mobile,
-            dob  // ✅ include DOB here
+            dob 
         });
 
         console.log("User created:", user);
@@ -38,8 +37,6 @@ const createUser = async (userData) => {
         throw new Error(error.message);
     }
 };
-
-
 
 
 const findUserById=async(userId)=>{

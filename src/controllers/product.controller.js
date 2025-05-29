@@ -1,13 +1,19 @@
-// productController.js
-const productService = require("../services/product.service.js")
+const productService = require("../services/product.service");
 
 // Create a new product
 async function createProduct(req, res) {
   try {
     const product = await productService.createProduct(req.body);
-    return res.status(201).json(product);
+    return res.status(201).json({
+      success: true,
+      message: "Product created successfully",
+      data: product
+    });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 }
 
@@ -16,9 +22,15 @@ async function deleteProduct(req, res) {
   try {
     const productId = req.params.id;
     const message = await productService.deleteProduct(productId);
-    return res.json({ message });
+    return res.status(200).json({ 
+      success: true,
+      message: message 
+    });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 }
 
@@ -27,75 +39,124 @@ async function updateProduct(req, res) {
   try {
     const productId = req.params.id;
     const product = await productService.updateProduct(productId, req.body);
-    return res.json(product);
+    return res.status(200).json({
+      success: true,
+      message: "Product updated successfully",
+      data: product
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 }
-
-// Get all products
-// async function getAllProducts(req, res) {
-//   try {
-//     const products = await productService.getAllProducts();
-//     res.json(products);
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// }
 
 // Find a product by ID
 async function findProductById(req, res) {
   try {
     const productId = req.params.id;
     const product = await productService.findProductById(productId);
-    return res.status(200).send(product);
+    return res.status(200).json({
+      success: true,
+      data: product
+    });
   } catch (err) {
-    return res.status(404).json({ message: err.message });
-  }
-}
-
-// Find products by category
-async function findProductByCategory(req, res) {
-  try {
-    const category = req.params.category;
-    const products = await productService.findProductByCategory(category);
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// Search products by query
-async function searchProduct(req, res) {
-  try {
-    const query = req.params.query;
-    const products = await productService.searchProduct(query);
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(404).json({ 
+      success: false,
+      message: err.message 
+    });
   }
 }
 
 // Get all products with filtering and pagination
 async function getAllProducts(req, res) {
   try {
-
     const products = await productService.getAllProducts(req.query);
-
-    return res.status(200).send(products);
+    return res.status(200).json({
+      success: true,
+      data: products
+    });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
   }
 }
 
-const createMultipleProduct= async (req, res) => {
+// Find products by category
+async function getProductsByCategory(req, res) {
   try {
-    await productService.createMultipleProduct(req.body)
-    res
-      .status(202)
-      .json({ message: "Products Created Successfully", success: true });
+    const categoryId = req.params.categoryId;
+    const products = await productService.getProductsByCategory(categoryId);
+    return res.status(200).json({
+      success: true,
+      data: products
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+}
+
+// Find products by subcategory
+async function getProductsBySubCategory(req, res) {
+  try {
+    const subCategoryId = req.params.subCategoryId;
+    const products = await productService.getProductsBySubCategory(subCategoryId);
+    return res.status(200).json({
+      success: true,
+      data: products
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+}
+
+// Search products by query
+async function searchProducts(req, res) {
+  try {
+    const { q, page, limit } = req.query;
+    if (!q) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query is required"
+      });
+    }
+    
+    const products = await productService.searchProducts(q, page, limit);
+    return res.status(200).json({
+      success: true,
+      data: products
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+}
+
+// Create multiple products
+const createMultipleProduct = async (req, res) => {
+  try {
+    const products = await productService.createMultipleProduct(req.body);
+    return res.status(201).json({ 
+      success: true,
+      message: "Products created successfully", 
+      data: products
+    });
   } catch (error) {
-    res.status(500).json({ error: "Something went wrong" });
+    return res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 };
 
@@ -105,8 +166,8 @@ module.exports = {
   updateProduct,
   getAllProducts,
   findProductById,
-  findProductByCategory,
-  searchProduct,
+  getProductsByCategory,
+  getProductsBySubCategory,
+  searchProducts,
   createMultipleProduct
-
 };

@@ -31,9 +31,9 @@ const productSchema = new mongoose.Schema({
     type: String,
   },
   sizes: [{
-    name:{type:String},
-    quantity:{type:Number}
-  }], 
+    name: { type: String },
+    quantity: { type: Number }
+  }],
   imageUrl: {
     type: String,
   },
@@ -42,21 +42,25 @@ const productSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ratings',
     },
-  ], 
+  ],
   reviews: [
     {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'reviews',
     },
-  ], 
+  ],
   numRatings: {
     type: Number,
     default: 0,
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',
-  }, 
+    ref: 'category',
+  },
+  subCategory: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'subCategory',
+  },
   createdAt: {
     type: Date,
     default: Date.now,

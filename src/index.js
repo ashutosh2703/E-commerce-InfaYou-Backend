@@ -28,6 +28,12 @@ app.use("/api/cart", cartRouter);
 
 app.use('/api/wishlist', require('./routes/wishlist.routes'));
 
+const categoryRoutes = require('./routes/categoryRoutes');
+const subCategoryRoutes = require('./routes/subCategoryRoutes');
+
+app.use('/api/categories', categoryRoutes);
+app.use('/api/subcategories', subCategoryRoutes);
+
 const cartItemRouter=require("./routes/cartItem.routes.js")
 app.use("/api/cart_items",cartItemRouter);
 
