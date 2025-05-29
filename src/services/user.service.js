@@ -5,7 +5,7 @@ const jwtProvider=require("../config/jwtProvider")
 
 const createUser = async (userData) => {
     try {
-        let { firstName, lastName, email, password, role, mobile, dob } = userData;
+        let { firstName, lastName, email = "", password, role, mobile, dob } = userData;
 
         const isUserExist = await User.findOne({  mobile });
 
@@ -37,7 +37,6 @@ const createUser = async (userData) => {
         throw new Error(error.message);
     }
 };
-
 
 const findUserById=async(userId)=>{
     try {
