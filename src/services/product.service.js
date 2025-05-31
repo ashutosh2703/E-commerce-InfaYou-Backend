@@ -5,39 +5,19 @@ const Product = require("../models/product.model");
 // Create a new product
 async function createProduct(reqData) {
   try {
-    // Handle category creation/finding
     let category = null;
-    if (reqData.categoryName) {
-      category = await CategoryModel.findOne({ name: reqData.categoryName });
-      
-      if (!category) {
-        const newCategory = new CategoryModel({
-          name: reqData.categoryName,
-          image: reqData.categoryImage || ""
-        });
-        category = await newCategory.save();
-      }
+    if (reqData.category) {
+      category = await CategoryModel.findById(reqData.category);
     }
 
-    // Handle subcategory creation/finding
     let subCategory = null;
-    if (reqData.subCategoryName && category) {
-      subCategory = await SubCategoryModel.findOne({ 
-        name: reqData.subCategoryName,
-        category: category._id 
-      });
-      
-      if (!subCategory) {
-        const newSubCategory = new SubCategoryModel({
-          name: reqData.subCategoryName,
-          image: reqData.subCategoryImage || "",
-          category: [category._id]
-        });
-        subCategory = await newSubCategory.save();
+    if (reqData.subCategory && category) {
+      subCategory = await SubCategoryModel.findById(reqData.subCategory);
+      if (subCategory && !subCategory.category.includes(category._id)) {
+        throw new Error("Subcategory does not belong to the selected category");
       }
     }
 
-    // Create the product
     const product = new Product({
       title: reqData.title,
       color: reqData.color,
@@ -55,7 +35,6 @@ async function createProduct(reqData) {
 
     const savedProduct = await product.save();
     return savedProduct;
-
   } catch (error) {
     throw new Error(`Error creating product: ${error.message}`);
   }
@@ -122,124 +101,141 @@ async function findProductById(id) {
 // Get all products with filtering and pagination
 async function getAllProducts(reqQuery) {
   try {
-    let {
-      category,
-      subCategory,
-      color,
-      sizes,
-      minPrice,
-      maxPrice,
-      minDiscount,
-      sort,
-      stock,
-      pageNumber,
-      pageSize,
-      brand
+    let { 
+      category, 
+      subCategory, 
+      color, 
+      sizes, 
+      minPrice, 
+      maxPrice, 
+      minDiscount, 
+      sort, 
+      stock, 
+      pageNumber, 
+      pageSize, 
+      brand 
     } = reqQuery;
 
-    pageSize = pageSize || 10;
-    pageNumber = pageNumber || 1;
+    // Parse and validate pagination parameters
+    pageSize = Math.min(Math.max(parseInt(pageSize) || 10, 1), 100);
+    pageNumber = Math.max(parseInt(pageNumber) || 0, 0);
+    
+    // Parse price filters
+    const min = Math.max(parseFloat(minPrice) || 0, 0);
+    const max = parseFloat(maxPrice) || 100000;
+    const minDiscountValue = Math.max(parseFloat(minDiscount) || 0, 0);
 
-    let query = Product.find().populate("category").populate("subCategory");
+    // Base query with population
+    let query = Product.find()
+      .populate("category", "name _id")
+      .populate("subCategory", "name _id");
 
-    // Category filter
-    if (category) {
-      const existCategory = await CategoryModel.findOne({ name: category });
-      if (existCategory) {
-        query = query.where("category").equals(existCategory._id);
-      } else {
-        return { content: [], currentPage: 1, totalPages: 1 };
-      }
+    // Apply filters only if values exist and are valid
+    if (category && category.trim() && category !== "undefined") {
+      query = query.where("category").equals(category.trim());
     }
 
-    // SubCategory filter
-    if (subCategory) {
-      const existSubCategory = await SubCategoryModel.findOne({ name: subCategory });
-      if (existSubCategory) {
-        query = query.where("subCategory").equals(existSubCategory._id);
-      } else {
-        return { content: [], currentPage: 1, totalPages: 1 };
-      }
+    if (subCategory && subCategory.trim() && subCategory !== "undefined") {
+      query = query.where("subCategory").equals(subCategory.trim());
+    }
+
+    if (brand && brand.trim()) {
+      query = query.where("brand").regex(new RegExp(brand.trim(), "i"));
     }
 
     // Color filter
-    if (color) {
-      const colorSet = new Set(color.split(",").map(color => color.trim().toLowerCase()));
-      const colorRegex = colorSet.size > 0 ? new RegExp([...colorSet].join("|"), "i") : null;
-      query = query.where("color").regex(colorRegex);
+    if (color && color.trim()) {
+      const colors = color.split(",")
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
+      
+      if (colors.length > 0) {
+        const colorRegex = new RegExp(colors.join("|"), "i");
+        query = query.where("color").regex(colorRegex);
+      }
     }
 
-    // Sizes filter
-    if (sizes) {
-      const sizesSet = new Set(sizes.split(","));
-      query = query.where("sizes.name").in([...sizesSet]);
-    }
-
-    // Brand filter
-    if (brand) {
-      query = query.where("brand").regex(new RegExp(brand, "i"));
+    // Size filter
+    if (sizes && sizes.trim()) {
+      const sizeArray = sizes.split(",")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      if (sizeArray.length > 0) {
+        query = query.where("sizes.name").in(sizeArray);
+      }
     }
 
     // Price range filter
-    if (minPrice && maxPrice) {
-      query = query.where("discountedPrice").gte(minPrice).lte(maxPrice);
+    if (min >= 0 && max > min) {
+      query = query.where("discountedPrice").gte(min).lte(max);
     }
 
     // Discount filter
-    if (minDiscount) {
-      query = query.where("discountPersent").gt(minDiscount);
+    if (minDiscountValue > 0) {
+      query = query.where("discountPersent").gte(minDiscountValue);
     }
 
     // Stock filter
-    if (stock) {
-      if (stock === "in_stock") {
+    if (stock && stock.trim()) {
+      const stockFilter = stock.trim().toLowerCase();
+      if (stockFilter === "in_stock") {
         query = query.where("quantity").gt(0);
-      } else if (stock === "out_of_stock") {
+      } else if (stockFilter === "out_of_stock") {
         query = query.where("quantity").lte(0);
       }
     }
 
     // Sorting
-    if (sort) {
-      switch (sort) {
-        case "price_high":
-          query = query.sort({ discountedPrice: -1 });
-          break;
-        case "price_low":
-          query = query.sort({ discountedPrice: 1 });
-          break;
-        case "newest":
-          query = query.sort({ createdAt: -1 });
-          break;
-        case "oldest":
-          query = query.sort({ createdAt: 1 });
-          break;
-        case "rating":
-          query = query.sort({ numRatings: -1 });
-          break;
-        default:
-          query = query.sort({ createdAt: -1 });
-      }
+    const sortOption = sort || "newest";
+    switch (sortOption) {
+      case "price_high":
+        query = query.sort({ discountedPrice: -1 });
+        break;
+      case "price_low":
+        query = query.sort({ discountedPrice: 1 });
+        break;
+      case "newest":
+        query = query.sort({ createdAt: -1 });
+        break;
+      case "oldest":
+        query = query.sort({ createdAt: 1 });
+        break;
+      case "rating":
+        query = query.sort({ avgRating: -1, numRatings: -1 });
+        break;
+      case "name_asc":
+        query = query.sort({ title: 1 });
+        break;
+      case "name_desc":
+        query = query.sort({ title: -1 });
+        break;
+      default:
+        query = query.sort({ createdAt: -1 });
     }
 
-    // Get total count for pagination
-    const totalProducts = await Product.countDocuments(query.getQuery());
-
+    // Get total count before pagination
+    const totalProducts = await query.clone().countDocuments();
+    
     // Apply pagination
-    const skip = (pageNumber - 1) * pageSize;
-    query = query.skip(skip).limit(pageSize);
-
-    const products = await query.exec();
+    const skip = pageNumber * pageSize;
+    const products = await query.skip(skip).limit(pageSize).lean().exec();
+    
+    // Calculate pagination info
     const totalPages = Math.ceil(totalProducts / pageSize);
 
-    return { 
-      content: products, 
-      currentPage: parseInt(pageNumber), 
-      totalPages: totalPages,
-      totalProducts: totalProducts
+    return {
+      content: products,
+      currentPage: pageNumber,
+      totalPages,
+      totalProducts,
+      pageSize,
+      hasNextPage: (pageNumber + 1) < totalPages,
+      hasPrevPage: pageNumber > 0
     };
 
   } catch (error) {
+    console.error(`Error fetching products: ${error.message}`);
     throw new Error(`Error fetching products: ${error.message}`);
   }
 }
