@@ -1,10 +1,10 @@
 const express = require("express");
 const authenticate = require("../middleware/authenticat.js");
 const router = express.Router();
-const ratingController = require("../services/rating.service.js");
+const ratingController = require("../controllers/rating.controller.js");
 
-router.get("/create",authenticate,ratingController.createRating);
-router.put("/product/:productId",authenticate,ratingController.getProductsRating);
+router.post("/create",authenticate,ratingController.createRating);
+router.get("/product/:productId",authenticate,ratingController.getProductsRating);
 
 
 module.exports=router;
