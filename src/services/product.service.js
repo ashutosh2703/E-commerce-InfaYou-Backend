@@ -1,6 +1,22 @@
 const CategoryModel = require("../models/categoryModel");
 const SubCategoryModel = require("../models/subCategory.model");
 const Product = require("../models/product.model");
+const Wishlist = require("../models/wishlist.model");
+
+async function markWishlisted(products, userId = null) {
+  if (!userId) {
+    return products.map(p => ({ ...p, isWishlisted: false }));
+  }
+
+  const wishlist = await Wishlist.findOne({ user: userId });
+  const wishlistedIds = new Set((wishlist?.items || []).map(item => item.product.toString()));
+
+  return products.map(p => ({
+    ...p,
+    isWishlisted: wishlistedIds.has(p._id.toString())
+  }));
+}
+
 
 // Create a new product
 async function createProduct(reqData) {
@@ -61,15 +77,15 @@ async function deleteProduct(productId) {
 async function updateProduct(productId, reqData) {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(
-      productId, 
+      productId,
       reqData,
       { new: true, runValidators: true }
     ).populate('category').populate('subCategory');
-    
+
     if (!updatedProduct) {
       throw new Error(`Product not found with id: ${productId}`);
     }
-    
+
     return updatedProduct;
 
   } catch (error) {
@@ -78,7 +94,7 @@ async function updateProduct(productId, reqData) {
 }
 
 // Find a product by ID
-async function findProductById(id) {
+async function findProductById(id,userId) {
   try {
     const product = await Product.findById(id)
       .populate("category")
@@ -86,12 +102,13 @@ async function findProductById(id) {
       .populate("ratings")
       .populate("reviews")
       .exec();
-      
+
     if (!product) {
       throw new Error(`Product not found with id: ${id}`);
     }
-    
-    return product;
+
+    const productWithWishlist = await markWishlisted([product.toObject()], userId);
+    return productWithWishlist[0];
 
   } catch (error) {
     throw new Error(`Error finding product: ${error.message}`);
@@ -99,27 +116,27 @@ async function findProductById(id) {
 }
 
 // Get all products with filtering and pagination
-async function getAllProducts(reqQuery) {
+async function getAllProducts(reqQuery,userId) {
   try {
-    let { 
-      category, 
-      subCategory, 
-      color, 
-      sizes, 
-      minPrice, 
-      maxPrice, 
-      minDiscount, 
-      sort, 
-      stock, 
-      pageNumber, 
-      pageSize, 
-      brand 
+    let {
+      category,
+      subCategory,
+      color,
+      sizes,
+      minPrice,
+      maxPrice,
+      minDiscount,
+      sort,
+      stock,
+      pageNumber,
+      pageSize,
+      brand
     } = reqQuery;
 
     // Parse and validate pagination parameters
     pageSize = Math.min(Math.max(parseInt(pageSize) || 10, 1), 100);
     pageNumber = Math.max(parseInt(pageNumber) || 0, 0);
-    
+
     // Parse price filters
     const min = Math.max(parseFloat(minPrice) || 0, 0);
     const max = parseFloat(maxPrice) || 100000;
@@ -148,7 +165,7 @@ async function getAllProducts(reqQuery) {
       const colors = color.split(",")
         .map(c => c.trim())
         .filter(c => c.length > 0);
-      
+
       if (colors.length > 0) {
         const colorRegex = new RegExp(colors.join("|"), "i");
         query = query.where("color").regex(colorRegex);
@@ -160,7 +177,7 @@ async function getAllProducts(reqQuery) {
       const sizeArray = sizes.split(",")
         .map(s => s.trim())
         .filter(s => s.length > 0);
-      
+
       if (sizeArray.length > 0) {
         query = query.where("sizes.name").in(sizeArray);
       }
@@ -216,11 +233,13 @@ async function getAllProducts(reqQuery) {
 
     // Get total count before pagination
     const totalProducts = await query.clone().countDocuments();
-    
+
     // Apply pagination
     const skip = pageNumber * pageSize;
-    const products = await query.skip(skip).limit(pageSize).lean().exec();
-    
+
+    let products = await query.skip(skip).limit(pageSize).lean().exec();
+    products = await markWishlisted(products,userId);
+
     // Calculate pagination info
     const totalPages = Math.ceil(totalProducts / pageSize);
 
@@ -244,12 +263,12 @@ async function getAllProducts(reqQuery) {
 async function createMultipleProduct(products) {
   try {
     const createdProducts = [];
-    
+
     for (let productData of products) {
       const product = await createProduct(productData);
       createdProducts.push(product);
     }
-    
+
     return createdProducts;
 
   } catch (error) {
@@ -264,8 +283,10 @@ async function getProductsByCategory(categoryId) {
       .populate("category")
       .populate("subCategory")
       .exec();
-    
-    return products;
+
+    const result = await markWishlisted(products.map(p => p.toObject()), userId);
+    return result;
+
 
   } catch (error) {
     throw new Error(`Error fetching products by category: ${error.message}`);
@@ -279,8 +300,9 @@ async function getProductsBySubCategory(subCategoryId) {
       .populate("category")
       .populate("subCategory")
       .exec();
-    
-    return products;
+
+    const result = await markWishlisted(products.map(p => p.toObject()), userId);
+    return result;
 
   } catch (error) {
     throw new Error(`Error fetching products by subcategory: ${error.message}`);
@@ -291,7 +313,7 @@ async function getProductsBySubCategory(subCategoryId) {
 async function searchProducts(searchTerm, pageNumber = 1, pageSize = 10) {
   try {
     const searchRegex = new RegExp(searchTerm, "i");
-    
+
     let query = Product.find({
       $or: [
         { title: { $regex: searchRegex } },
@@ -301,7 +323,7 @@ async function searchProducts(searchTerm, pageNumber = 1, pageSize = 10) {
     }).populate("category").populate("subCategory");
 
     const totalProducts = await Product.countDocuments(query.getQuery());
-    
+
     const skip = (pageNumber - 1) * pageSize;
     query = query.skip(skip).limit(pageSize);
 

@@ -56,7 +56,7 @@ async function updateProduct(req, res) {
 async function findProductById(req, res) {
   try {
     const productId = req.params.id;
-    const product = await productService.findProductById(productId);
+    const product = await productService.findProductById(productId,req.user?._id);
     return res.status(200).json({
       success: true,
       data: product
@@ -72,7 +72,8 @@ async function findProductById(req, res) {
 // Get all products with filtering and pagination
 async function getAllProducts(req, res) {
   try {
-    const products = await productService.getAllProducts(req.query);
+    const reqQuery = req.query;
+    const products = await productService.getAllProducts(reqQuery,req.user?._id);
     return res.status(200).json({
       success: true,
       data: products

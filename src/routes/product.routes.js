@@ -1,6 +1,28 @@
 const express=require("express");
 const router=express.Router();
 const productController=require("../controllers/product.controller.js");
+const jwtProvider=require("../config/jwtProvider.js")
+const userService=require("../services/user.service.js")
+
+ router.use(async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const userId = jwtProvider.getUserIdFromToken(token);
+      const user = await userService.findUserById(userId);
+      
+      if (user) {
+        req.user = user;
+      }
+    }
+  } catch (error) {
+    // Agar token galat hai to bhi ignore karo, isliye catch empty
+  }
+  
+  next();
+});
 
 router.post('/', productController.createProduct);
 
