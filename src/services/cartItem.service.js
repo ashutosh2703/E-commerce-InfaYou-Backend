@@ -17,7 +17,6 @@ async function createCartItem(cartItemData) {
 // Update an existing cart item
 async function updateCartItem(userId, cartItemId, cartItemData) {
   const item = await findCartItemById(cartItemId)
-  // console.log("cartItemData ",item)
 
   if(!item){
     throw new Error("cart item not found : ",cartItemId)
