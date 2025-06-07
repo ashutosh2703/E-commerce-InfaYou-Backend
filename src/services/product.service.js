@@ -277,7 +277,7 @@ async function createMultipleProduct(products) {
 }
 
 // Get products by category
-async function getProductsByCategory(categoryId) {
+async function getProductsByCategory(categoryId,userId) {
   try {
     const products = await Product.find({ category: categoryId })
       .populate("category")
@@ -294,7 +294,7 @@ async function getProductsByCategory(categoryId) {
 }
 
 // Get products by subcategory
-async function getProductsBySubCategory(subCategoryId) {
+async function getProductsBySubCategory(subCategoryId,userId) {
   try {
     const products = await Product.find({ subCategory: subCategoryId })
       .populate("category")
