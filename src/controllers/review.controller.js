@@ -20,7 +20,7 @@ const createReview = async (req, res) => {
 
 const getAllReview = async (req, res) => {
   const productId = req.params.productId;
-  console.log("product id ",productId)
+  // console.log("product id ",productId)
   try {
    
     const reviews =await reviewService.getAllReview(productId);

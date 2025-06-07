@@ -310,34 +310,141 @@ async function getProductsBySubCategory(subCategoryId) {
 }
 
 // Search products by title or description
-async function searchProducts(searchTerm, pageNumber = 1, pageSize = 10) {
+async function searchProducts(reqQuery, userId) {
   try {
-    const searchRegex = new RegExp(searchTerm, "i");
+    let {
+      search,
+      color,
+      sizes,
+      minPrice,
+      maxPrice,
+      minDiscount,
+      sort,
+      stock,
+      pageNumber,
+      pageSize,
+      brand
+    } = reqQuery;
 
+    // Parse and validate pagination parameters
+    pageSize = Math.min(Math.max(parseInt(pageSize) || 10, 1), 100);
+    pageNumber = Math.max(parseInt(pageNumber) || 0, 0);
+
+    // Parse price filters
+    const min = Math.max(parseFloat(minPrice) || 0, 0);
+    const max = parseFloat(maxPrice) || 100000;
+    const minDiscountValue = Math.max(parseFloat(minDiscount) || 0, 0);
+
+    // Base search query
+    const searchRegex = new RegExp(search, "i");
     let query = Product.find({
       $or: [
         { title: { $regex: searchRegex } },
         { description: { $regex: searchRegex } },
         { brand: { $regex: searchRegex } }
       ]
-    }).populate("category").populate("subCategory");
+    }).populate("category", "name _id").populate("subCategory", "name _id");
 
-    const totalProducts = await Product.countDocuments(query.getQuery());
+    // Apply filters
+    if (brand && brand.trim()) {
+      query = query.where("brand").regex(new RegExp(brand.trim(), "i"));
+    }
 
-    const skip = (pageNumber - 1) * pageSize;
-    query = query.skip(skip).limit(pageSize);
+    // Color filter
+    if (color && color.trim()) {
+      const colors = color.split(",")
+        .map(c => c.trim())
+        .filter(c => c.length > 0);
 
-    const products = await query.exec();
+      if (colors.length > 0) {
+        const colorRegex = new RegExp(colors.join("|"), "i");
+        query = query.where("color").regex(colorRegex);
+      }
+    }
+
+    // Size filter
+    if (sizes && sizes.trim()) {
+      const sizeArray = sizes.split(",")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
+      if (sizeArray.length > 0) {
+        query = query.where("sizes.name").in(sizeArray);
+      }
+    }
+
+    // Price range filter
+    if (min >= 0 && max > min) {
+      query = query.where("discountedPrice").gte(min).lte(max);
+    }
+
+    // Discount filter
+    if (minDiscountValue > 0) {
+      query = query.where("discountPersent").gte(minDiscountValue);
+    }
+
+    // Stock filter
+    if (stock && stock.trim()) {
+      const stockFilter = stock.trim().toLowerCase();
+      if (stockFilter === "in_stock") {
+        query = query.where("quantity").gt(0);
+      } else if (stockFilter === "out_of_stock") {
+        query = query.where("quantity").lte(0);
+      }
+    }
+
+    // Sorting
+    const sortOption = sort || "newest";
+    switch (sortOption) {
+      case "price_high":
+        query = query.sort({ discountedPrice: -1 });
+        break;
+      case "price_low":
+        query = query.sort({ discountedPrice: 1 });
+        break;
+      case "newest":
+        query = query.sort({ createdAt: -1 });
+        break;
+      case "oldest":
+        query = query.sort({ createdAt: 1 });
+        break;
+      case "rating":
+        query = query.sort({ avgRating: -1, numRatings: -1 });
+        break;
+      case "name_asc":
+        query = query.sort({ title: 1 });
+        break;
+      case "name_desc":
+        query = query.sort({ title: -1 });
+        break;
+      default:
+        query = query.sort({ createdAt: -1 });
+    }
+
+    // Get total count before pagination
+    const totalProducts = await query.clone().countDocuments();
+
+    // Apply pagination
+    const skip = pageNumber * pageSize;
+
+    let products = await query.skip(skip).limit(pageSize).lean().exec();
+    products = await markWishlisted(products, userId);
+
+    // Calculate pagination info
     const totalPages = Math.ceil(totalProducts / pageSize);
 
     return {
       content: products,
-      currentPage: parseInt(pageNumber),
-      totalPages: totalPages,
-      totalProducts: totalProducts
+      currentPage: pageNumber,
+      totalPages,
+      totalProducts,
+      pageSize,
+      hasNextPage: (pageNumber + 1) < totalPages,
+      hasPrevPage: pageNumber > 0
     };
 
   } catch (error) {
+    console.error(`Error searching products: ${error.message}`);
     throw new Error(`Error searching products: ${error.message}`);
   }
 }

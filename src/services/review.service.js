@@ -26,9 +26,7 @@ async function getAllReview(productId) {
   if(!product){
     throw new Error("product not found with id ", productId)
   }
-  
   const reviews = await Review.find({ product: productId }).populate("user");
-  console.log("reviews ",reviews)
   return reviews
 }
 

@@ -123,24 +123,25 @@ async function getProductsBySubCategory(req, res) {
 // Search products by query
 async function searchProducts(req, res) {
   try {
-    const { q, page, limit } = req.query;
-    if (!q) {
+    const userId = req.user?.id;
+    
+    if (!req.query.search) {
       return res.status(400).json({
         success: false,
         message: "Search query is required"
       });
     }
-    
-    const products = await productService.searchProducts(q, page, limit);
+         
+    const products = await productService.searchProducts(req.query, userId);
     return res.status(200).json({
       success: true,
       data: products
     });
   } catch (err) {
-    return res.status(500).json({ 
-      success: false,
-      error: err.message 
-    });
+    return res.status(500).json({
+       success: false,
+       error: err.message
+     });
   }
 }
 
