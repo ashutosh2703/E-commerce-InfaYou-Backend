@@ -59,9 +59,9 @@ const generateInvoice = async (order, user, items, address) => {
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#000') // Ensures visible black text
-    .text(`Name: ${user.firstName} ${user.lastName}`, 60, 180)
+    .text(`Name: ${address.firstName} ${address.lastName}`, 60, 180)
     .text(`Email: ${user.email}`, 60, 195)
-    .text(`Mobile: ${user.mobile}`, 60, 210)
+    .text(`Mobile: ${address.mobile}`, 60, 210)
     .text(
       `Shipping Address: ${address.streetAddress}, ${address.city}, ${address.state} - ${address.zipCode}`,
       60,

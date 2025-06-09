@@ -5,6 +5,7 @@ const OrderItem = require("../models/orderItems.js");
 const User = require("../models/user.model.js");
 const cartService = require("../services/cart.service.js");
 const generateInvoice = require('./generateInvoice.js');
+const CartItem = require("../models/cartItem.model.js");
 
 async function createOrder(user, shippAddress) {
   const session = await mongoose.startSession();
@@ -57,7 +58,11 @@ async function createOrder(user, shippAddress) {
 
     const savedOrder = await createdOrder.save({ session });
 
-    // Clear cart
+    // Delete all CartItem documents from the database
+    const cartItemIds = cart.cartItems.map(item => item._id);
+    await CartItem.deleteMany({ _id: { $in: cartItemIds } }, { session });
+
+    // Clear cart references
     cart.cartItems = [];
     cart.totalPrice = 0;
     cart.totalDiscountedPrice = 0;
@@ -145,6 +150,7 @@ async function usersOrderHistory(userId) {
 
 async function getAllOrders() {
   return await Order.find()
+    .sort({ createdAt: -1 })
     .populate({
       path: "orderItems",
       populate: {
@@ -157,10 +163,27 @@ async function getAllOrders() {
 
 
 async function deleteOrder(orderId) {
-  const order = await findOrderById(orderId);
-  if(!order)throw new Error("order not found with id ",orderId)
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  await Order.findByIdAndDelete(orderId);
+  try {
+    const order = await findOrderById(orderId);
+    if (!order) throw new Error("order not found with id " + orderId);
+
+    // Delete all OrderItem documents associated with this order
+    await OrderItem.deleteMany({ _id: { $in: order.orderItems } }, { session });
+
+    // Delete the order itself
+    await Order.findByIdAndDelete(orderId, { session });
+
+    await session.commitTransaction();
+    session.endSession();
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Order deletion failed:", error);
+    throw new Error("Order deletion failed. Please try again.");
+  }
 }
 
 module.exports = {
