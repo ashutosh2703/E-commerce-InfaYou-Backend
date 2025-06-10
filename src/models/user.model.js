@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema({
     required: true,
     default: "CUSTOMER"
   },
+  refreshToken: {
+    type: String,
+    default: null
+  },
   dob: {
     type: Date,
   },

@@ -22,6 +22,9 @@ app.use("/auth",authRouter)
 const userRouter=require("./routes/user.routes.js");
 app.use("/api/users",userRouter)
 
+const addressRouter = require("./routes/address.routes.js");
+app.use("/api/addresses", addressRouter);
+
 const productRouter=require("./routes/product.routes.js");
 app.use("/api/products",productRouter);
 

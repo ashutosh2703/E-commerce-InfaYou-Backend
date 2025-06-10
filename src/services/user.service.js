@@ -232,6 +232,19 @@ const deleteUser = async (userId) => {
     }
 };
 
+const updateRefreshToken = async (userId, refreshToken) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { refreshToken: refreshToken },
+            { new: true }
+        );
+        return user;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+};
+
 module.exports={
     createUser,
     findUserById,
@@ -240,5 +253,6 @@ module.exports={
     getUserByMobile,
     getAllUsers,
     updateUser,
-    deleteUser
+    deleteUser,
+    updateRefreshToken
 }

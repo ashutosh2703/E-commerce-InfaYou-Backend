@@ -33,8 +33,16 @@ const verifyOtp = async (req, res) => {
             });
         }
 
-        const jwt = jwtProvider.generateToken(user._id);
-        return res.status(200).json({ jwt, message: "Login successful via OTP" });
+        const accessToken = jwtProvider.generateToken(user._id);
+        const refreshToken = jwtProvider.generateRefreshToken(user._id);
+
+        await userService.updateRefreshToken(user._id, refreshToken);
+
+        return res.status(200).json({ 
+            jwt:accessToken, 
+            refreshToken, 
+            message: "Login successful via OTP" 
+        });
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
@@ -44,15 +52,63 @@ const verifyOtp = async (req, res) => {
 const register = async (req, res) => {
     try {
         const user = await userService.createUser(req.body);
-        const jwt = jwtProvider.generateToken(user._id);
+        const accessToken = jwtProvider.generateToken(user._id);
+        const refreshToken = jwtProvider.generateRefreshToken(user._id);
 
+        await userService.updateRefreshToken(user._id, refreshToken);
         await cartService.createCart(user);
 
-        return res.status(200).json({ jwt, message: "Registration successful" });
+        return res.status(200).json({ 
+            jwt:accessToken, 
+            refreshToken, 
+            message: "Registration successful" 
+        });
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
 };
 
-module.exports = { sendOtp, verifyOtp, register };
+const refreshAccessToken = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    try {
+        if (!refreshToken) {
+            return res.status(401).json({ message: "Refresh token required" });
+        }
+
+        const decoded = jwtProvider.verifyRefreshToken(refreshToken);
+        const user = await userService.findUserById(decoded.userId);
+
+        if (!user || user.refreshToken !== refreshToken) {
+            return res.status(403).json({ message: "Invalid refresh token" });
+        }
+
+        const newAccessToken = jwtProvider.generateToken(user._id);
+        const newRefreshToken = jwtProvider.generateRefreshToken(user._id);
+
+        await userService.updateRefreshToken(user._id, newRefreshToken);
+
+        return res.status(200).json({
+            jwt: newAccessToken,
+            refreshToken: newRefreshToken,
+            message: "Token refreshed successfully"
+        });
+
+    } catch (error) {
+        return res.status(403).json({ message: "Invalid refresh token" });
+    }
+};
+
+const logout = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        await userService.updateRefreshToken(userId, null);
+        
+        return res.status(200).json({ message: "Logout successful" });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+};
+
+module.exports = { sendOtp, verifyOtp, register, refreshAccessToken, logout };

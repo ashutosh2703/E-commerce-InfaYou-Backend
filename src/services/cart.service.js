@@ -48,10 +48,11 @@ async function addCartItem(userId, req) {
   const isPresent = await CartItem.findOne({ cart: cart._id, product: product._id, userId });
   
   if (!isPresent) {
+    const quantity = req.quantity || 1;
     const cartItem = new CartItem({
       product: product._id,
       cart: cart._id,
-      quantity: 1,
+      quantity,
       userId,
       price: product.price,
       size: req.size,

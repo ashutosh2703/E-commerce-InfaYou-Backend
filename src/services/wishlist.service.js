@@ -1,8 +1,32 @@
 const Wishlist = require('../models/wishlist.model');
 
-async function getWishlist(userId) {
-  const wishlist = await Wishlist.findOne({ user: userId }).populate('items.product');
-  return { wishlist, updated: false }; // No change on get
+async function getWishlist(userId, sortBy = null) {
+  const wishlist = await Wishlist.findOne({ user: userId }).populate({
+    path: 'items.product',
+    populate: [
+      { path: 'category', model: 'category' },
+      { path: 'subCategory', model: 'subCategory' }
+    ]
+  });
+
+
+  if (wishlist && wishlist.items && wishlist.items.length > 0 && sortBy) {
+    wishlist.items.sort((a, b) => {
+      const priceA = a.product?.price || a.product?.discountedPrice || 0;
+      const priceB = b.product?.price || b.product?.discountedPrice || 0;
+
+      switch (sortBy) {
+        case 'price-low-to-high':
+          return priceA - priceB;
+        case 'price-high-to-low':
+          return priceB - priceA;
+        default:
+          return 0;
+      }
+    });
+  }
+
+  return { wishlist, updated: false };
 }
 
 async function addToWishlist(userId, productId) {

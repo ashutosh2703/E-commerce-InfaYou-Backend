@@ -9,10 +9,17 @@ router.use(authenticate);
 router.get('/', async (req, res) => {
   try {
     const userId = req.user._id;
-    const wishlist = await wishlistService.getWishlist(userId);
+    const { sortBy } = req.query; // Get sort parameter from query string
+    
+    const wishlist = await wishlistService.getWishlist(userId, sortBy);
     res.status(200).json({ success: true, updated: false, data: wishlist });
   } catch (error) {
-    res.status(500).json({ success: false, updated: false, message: "Failed to fetch wishlist", error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      updated: false, 
+      message: "Failed to fetch wishlist", 
+      error: error.message 
+    });
   }
 });
 
