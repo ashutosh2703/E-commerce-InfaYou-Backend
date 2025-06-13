@@ -53,14 +53,11 @@ const register = async (req, res) => {
     try {
         const user = await userService.createUser(req.body);
         const accessToken = jwtProvider.generateToken(user._id);
-        const refreshToken = jwtProvider.generateRefreshToken(user._id);
 
-        await userService.updateRefreshToken(user._id, refreshToken);
         await cartService.createCart(user);
 
         return res.status(200).json({ 
             jwt:accessToken, 
-            refreshToken, 
             message: "Registration successful" 
         });
 
@@ -85,13 +82,9 @@ const refreshAccessToken = async (req, res) => {
         }
 
         const newAccessToken = jwtProvider.generateToken(user._id);
-        const newRefreshToken = jwtProvider.generateRefreshToken(user._id);
-
-        await userService.updateRefreshToken(user._id, newRefreshToken);
 
         return res.status(200).json({
             jwt: newAccessToken,
-            refreshToken: newRefreshToken,
             message: "Token refreshed successfully"
         });
 
