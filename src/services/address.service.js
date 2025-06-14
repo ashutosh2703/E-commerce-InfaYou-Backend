@@ -3,13 +3,17 @@ const User = require('../models/user.model.js');
 
 const createAddress = async (addressData, userId) => {
     try {
-        const { firstName, lastName, streetAddress, city, state, zipCode, mobile } = addressData;
+        const { firstName, lastName, streetAddress, city, state, zipCode, mobile, isDefault } = addressData;
         
         // Check if user exists
         const user = await User.findById(userId);
         if (!user) {
             throw new Error(`User not found with id: ${userId}`);
         }
+        
+        // If this is the user's first address, make it default automatically
+        const existingAddresses = await Address.find({ user: userId });
+        const shouldBeDefault = isDefault || existingAddresses.length === 0;
         
         const address = await Address.create({
             firstName,
@@ -19,7 +23,8 @@ const createAddress = async (addressData, userId) => {
             state,
             zipCode,
             user: userId,
-            mobile
+            mobile,
+            isDefault: shouldBeDefault
         });
         
         console.log("Address created:", address);
@@ -39,11 +44,66 @@ const getAddressesByUserId = async (userId) => {
             throw new Error(`User not found with id: ${userId}`);
         }
         
-        const addresses = await Address.find({ user: userId }).populate('user', 'firstName lastName email mobile');
+        // Sort by default first, then by creation date
+        const addresses = await Address.find({ user: userId })
+            .populate('user', 'firstName lastName email mobile')
+            .sort({ isDefault: -1, createdAt: -1 });
         return addresses;
         
     } catch (error) {
         console.log("Get Addresses Error -", error.message);
+        throw new Error(error.message);
+    }
+};
+
+const getDefaultAddress = async (userId) => {
+    try {
+        // Check if user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            throw new Error(`User not found with id: ${userId}`);
+        }
+        
+        const defaultAddress = await Address.findOne({ user: userId, isDefault: true })
+            .populate('user', 'firstName lastName email mobile');
+        
+        if (!defaultAddress) {
+            throw new Error(`No default address found for user: ${userId}`);
+        }
+        
+        return defaultAddress;
+        
+    } catch (error) {
+        console.log("Get Default Address Error -", error.message);
+        throw new Error(error.message);
+    }
+};
+
+const setDefaultAddress = async (addressId, userId) => {
+    try {
+        // Check if address exists and belongs to the user
+        const address = await Address.findOne({ _id: addressId, user: userId });
+        if (!address) {
+            throw new Error(`Address not found or you don't have permission to modify this address`);
+        }
+        
+        // Remove default from all other addresses of this user
+        await Address.updateMany(
+            { user: userId, _id: { $ne: addressId } },
+            { isDefault: false }
+        );
+        
+        // Set this address as default
+        const updatedAddress = await Address.findByIdAndUpdate(
+            addressId,
+            { isDefault: true },
+            { new: true, runValidators: true }
+        ).populate('user', 'firstName lastName email mobile');
+        
+        return updatedAddress;
+        
+    } catch (error) {
+        console.log("Set Default Address Error -", error.message);
         throw new Error(error.message);
     }
 };
@@ -66,7 +126,7 @@ const getAddressById = async (addressId) => {
 
 const updateAddress = async (addressId, updateData, userId) => {
     try {
-        const { firstName, lastName, streetAddress, city, state, zipCode, mobile } = updateData;
+        const { firstName, lastName, streetAddress, city, state, zipCode, mobile, isDefault } = updateData;
         
         // Check if address exists and belongs to the user
         const existingAddress = await Address.findOne({ _id: addressId, user: userId });
@@ -83,6 +143,7 @@ const updateAddress = async (addressId, updateData, userId) => {
         if (state !== undefined) updateObject.state = state;
         if (zipCode !== undefined) updateObject.zipCode = zipCode;
         if (mobile !== undefined) updateObject.mobile = mobile;
+        if (isDefault !== undefined) updateObject.isDefault = isDefault;
         
         const updatedAddress = await Address.findByIdAndUpdate(
             addressId,
@@ -107,7 +168,19 @@ const deleteAddress = async (addressId, userId) => {
             throw new Error(`Address not found or you don't have permission to delete this address`);
         }
         
+        const isDefaultAddress = address.isDefault;
+        
+        // Delete the address
         const deletedAddress = await Address.findByIdAndDelete(addressId);
+        
+        // If deleted address was default, set another address as default
+        if (isDefaultAddress) {
+            const remainingAddresses = await Address.find({ user: userId }).sort({ createdAt: -1 });
+            if (remainingAddresses.length > 0) {
+                await Address.findByIdAndUpdate(remainingAddresses[0]._id, { isDefault: true });
+                console.log("New default address set:", remainingAddresses[0]._id);
+            }
+        }
         
         console.log("Address deleted:", deletedAddress);
         return deletedAddress;
@@ -120,7 +193,9 @@ const deleteAddress = async (addressId, userId) => {
 
 const getAllAddresses = async () => {
     try {
-        const addresses = await Address.find().populate('user', 'firstName lastName email mobile');
+        const addresses = await Address.find()
+            .populate('user', 'firstName lastName email mobile')
+            .sort({ isDefault: -1, createdAt: -1 });
         return addresses;
         
     } catch (error) {
@@ -132,6 +207,8 @@ const getAllAddresses = async () => {
 module.exports = {
     createAddress,
     getAddressesByUserId,
+    getDefaultAddress,
+    setDefaultAddress,
     getAddressById,
     updateAddress,
     deleteAddress,

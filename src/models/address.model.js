@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
+const addressSchema = new mongoose.Schema({
   firstName: {
     type: String,
     required: true,
@@ -32,8 +32,26 @@ const userSchema = new mongoose.Schema({
   mobile: {
     type: String,
   },
+  isDefault: {
+    type: Boolean,
+    default: false,
+  }
+}, {
+  timestamps: true
 });
 
-const Address = mongoose.model('addresses', userSchema);
+addressSchema.pre('save', async function(next) {
+  if (this.isDefault) {
+    await this.constructor.updateMany(
+      { user: this.user, _id: { $ne: this._id } },
+      { isDefault: false }
+    );
+  }
+  next();
+});
+
+addressSchema.index({ user: 1, isDefault: 1 });
+
+const Address = mongoose.model('addresses', addressSchema);
 
 module.exports = Address;

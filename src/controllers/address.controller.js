@@ -58,6 +58,65 @@ const getUserAddresses = async (req, res) => {
     }
 };
 
+const getDefaultAddress = async (req, res) => {
+    try {
+        const jwt = req.headers.authorization?.split(' ')[1];
+        
+        if (!jwt) {
+            return res.status(401).send({ error: "Authorization token not found" });
+        }
+        
+        const userId = jwtProvider.getUserIdFromToken(jwt);
+        const defaultAddress = await addressService.getDefaultAddress(userId);
+        
+        return res.status(200).send({
+            message: "Default address retrieved successfully",
+            address: defaultAddress
+        });
+        
+    } catch (error) {
+        console.log("Get Default Address Controller Error -", error);
+        
+        if (error.message.includes("User not found") || error.message.includes("No default address")) {
+            return res.status(404).send({ error: error.message });
+        }
+        
+        return res.status(500).send({ error: error.message });
+    }
+};
+
+const setDefaultAddress = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const jwt = req.headers.authorization?.split(' ')[1];
+        
+        if (!jwt) {
+            return res.status(401).send({ error: "Authorization token not found" });
+        }
+        
+        if (!id) {
+            return res.status(400).send({ error: "Address ID is required" });
+        }
+        
+        const userId = jwtProvider.getUserIdFromToken(jwt);
+        const defaultAddress = await addressService.setDefaultAddress(id, userId);
+        
+        return res.status(200).send({
+            message: "Default address set successfully",
+            address: defaultAddress
+        });
+        
+    } catch (error) {
+        console.log("Set Default Address Controller Error -", error);
+        
+        if (error.message.includes("not found") || error.message.includes("permission")) {
+            return res.status(404).send({ error: error.message });
+        }
+        
+        return res.status(500).send({ error: error.message });
+    }
+};
+
 const getAddressById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -163,6 +222,8 @@ const getAllAddresses = async (req, res) => {
 module.exports = {
     createAddress,
     getUserAddresses,
+    getDefaultAddress,
+    setDefaultAddress,
     getAddressById,
     updateAddress,
     deleteAddress,
